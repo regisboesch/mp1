@@ -282,10 +282,8 @@ void MP1Node::ProcessPush(void *env, char *data, int size)
 			memberNode->memberList.push_back(mEOut[index]);
 			log->logNodeAdd(&memberNode->addr, new Address(to_string(id) + ":" + to_string(mEOut[index].getport())));
 
-			// TODO : send PUSH message
-			if (heartbeat > memberNode->memberList[index].getheartbeat()) { 
-
-			}
+			// Send to GOssip Node
+			sendPushMsg(&mEOut[index]);
 		}
 	}
 
@@ -311,6 +309,9 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 		mEOut[index].settimestamp((long)time(NULL));
 		mEOut[index].setheartbeat(1);	// first heartbeat to send		
 		memberNode->memberList.push_back(mEOut[index]);
+
+		// log Other Node
+		log->logNodeAdd(&memberNode->addr, new Address(to_string(mEOut[index].getid()) + ":" + to_string(mEOut[index].getport())));
 	}	
 
 	// Set node to group

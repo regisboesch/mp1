@@ -20,7 +20,7 @@
  */
 #define TREMOVE 20
 #define TFAIL 5
-#define GOSSIPK 3
+#define GOSSIPK 4
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
