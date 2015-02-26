@@ -14,13 +14,13 @@
 #include "Member.h"
 #include "EmulNet.h"
 #include "Queue.h"
-
+#include <random>
 /**
  * Macros
  */
 #define TREMOVE 20
 #define TFAIL 5
-#define GOSSIPK 2
+#define GOSSIPK 3
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
@@ -55,8 +55,8 @@ private:
 	Params *par;
 	Member *memberNode;
 	char NULLADDR[6];
-	void sendPushMsg(MemberListEntry *me, long heartbeat);
-
+	void sendPushMsg(MemberListEntry *me);
+	int getRandomVectorPosition();
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
 	Member * getMemberNode() {

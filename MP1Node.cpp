@@ -281,10 +281,14 @@ void MP1Node::ProcessPush(void *env, char *data, int size)
 			memberNode->memberList.push_back(mEOut[index]);
 			log->logNodeAdd(&memberNode->addr, new Address(to_string(id) + ":" + to_string(mEOut[index].getport())));
 
+			// TODO : send PUSH message
+			if (heartbeat > memberNode->memberList[index].getheartbeat()) { 
+
+			}
 		}
 	}
 
-	// TODO : send PUSH message
+	
 
 	free(mEOut);
 }
@@ -315,8 +319,12 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 
 	// Send PUSH message with updated Membership List
 	for (int index=0; index < memberNode->memberList.size(); index++) {
+		
+		// Update HearBeat
 		long heatbeatMe = memberNode->memberList[index].getheartbeat();
-		sendPushMsg(&memberNode->memberList[index], heatbeatMe++);
+		memberNode->memberList[index].setheartbeat(heatbeatMe++);
+
+		sendPushMsg(&memberNode->memberList[index]);
 	}
 	
 	
@@ -324,10 +332,10 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 }
 
 //  Send PUSH message with updated Membership List
-void MP1Node::sendPushMsg(MemberListEntry *me, long heartbeat) {
+void MP1Node::sendPushMsg(MemberListEntry *me) {
 	int numberToPush = GOSSIPK;
 	int indexGossip = 0;
-
+	MessageHdr *msg;
 	int sizeNode = memberNode->memberList.size();
 
 	//Nothing to send, only one node in Membership List (itslef)
@@ -339,28 +347,36 @@ void MP1Node::sendPushMsg(MemberListEntry *me, long heartbeat) {
 
 	while (indexGossip < numberToPush) {
 		
-		// Iterate over node
-		for (int index=0; index < sizeNode; index++) {
+		// Get Randomly a Member
+		int dice_roll = getRandomVectorPosition();
+		MemberListEntry nodeToSend = memberNode->memberList[dice_roll];
 
-			// Check if node itself
-			if (memberNode->memberList.getid() == memberNode->addr) {
+		// Send Push Message to node
+		size_t size_vector = sizeof(MemberListEntry);
+		size_t msgsize = sizeof(MessageHdr) + size_vector;
 
-				continue;
-			}
-			
-			if(memberNode->memberList.getheartbeat() != heartbeat) {
-				
+		msg = (MessageHdr *) malloc(msgsize * sizeof(char));
+		msg->msgType = PUSH;	
+      
+	    // Send via EmulNet
+	    memcpy((char *)(msg+1), (char *)me, size_vector);
+	    emulNet->ENsend(&memberNode->addr, new Address(to_string(nodeToSend.getid()) + ":" + to_string(nodeToSend.getport())), (char *)msg, msgsize);
 
-				// set and send message with heartbeat
-				memberNode->memberList.setheartbeat(heartbeat);
-				// send via emulNet
+		// Increase Gossip Number
+		indexGossip++;
 
-				indexGossip++;
-				break;
-			}
-		}
+		free(msg);
 
 	}
+}
+
+// return a random position of the Membership List
+int MP1Node::getRandomVectorPosition() {
+	int size = memberNode->memberList.size();
+	std::default_random_engine generator;
+	std::uniform_int_distribution<int> distribution(0,size);
+	int dice_roll = distribution(generator);
+	return dice_roll;
 }
 /*
 Send a List of joined nodes from introducer
