@@ -38,5 +38,5 @@
  1.0.0.0:0 [3] Introducer receive Message JOINREQ from (10:0)
  10.0.0.0:0 [4] Node 10.0.0.0:0 joined at time 4
  9.0.0.0:0 [4] Node 9.0.0.0:0 joined at time 4
- 3.0.0.0:0 [100] Node failed at time=100
+ 5.0.0.0:0 [100] Node failed at time=100
  1.0.0.0:0 [500] @@time=500

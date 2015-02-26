@@ -126,7 +126,7 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         // I am the group booter (first process to join the group). Boot up the group
 #ifdef DEBUGLOG
         log->LOG(&memberNode->addr, "Starting up group...");
-#endif DEBUGLOG        
+#endif     
         memberNode->inGroup = true;
     }
     else {
@@ -234,7 +234,8 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 		case JOINREP:			
 			ProcessJoinRep(env,data,size);					
 			break;
-		case PUSH :			
+		case PUSH :	
+			ProcessPush(env,data,size);		
 			break;			
 		default :			
 			break;
@@ -244,6 +245,49 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 	return true;
 }
 
+/* Receive Gossip-Membership Message and process it */
+void MP1Node::ProcessPush(void *env, char *data, int size)
+{
+	// Get Membership List
+	size_t msgsize = size - sizeof(MessageHdr);
+	int numberOfMemberListEntry = msgsize/sizeof(memberNode->memberList);
+	MemberListEntry *mEOut = new MemberListEntry[numberOfMemberListEntry];
+	memcpy(mEOut, &data[0]+sizeof(MessageHdr), msgsize);
+
+	// Process each membership from message
+	for (int index=0; index < numberOfMemberListEntry; index++) {	
+		int id = mEOut[index].getid();
+		long heartbeat = mEOut[index].getheartbeat();
+
+		//Iterate over our Membership List
+		bool found = false;
+		for (int index=0; index < memberNode->memberList.size(); index++) {
+			if (memberNode->memberList[index].getid() == id) {
+				found = true;
+
+				// Check heartbeat and update it if value is more recent
+				if (heartbeat > memberNode->memberList[index].getheartbeat()) {
+					// update heartbeat and timestamp
+					memberNode->memberList[index].setheartbeat(heartbeat);
+					memberNode->memberList[index].settimestamp((long)time(NULL));
+				}
+				break;
+			}
+		}
+
+		// Check if not found -> new node
+		if (!found) {
+			mEOut[index].settimestamp((long)time(NULL));
+			memberNode->memberList.push_back(mEOut[index]);
+			log->logNodeAdd(&memberNode->addr, new Address(to_string(id) + ":" + to_string(mEOut[index].getport())));
+
+		}
+	}
+
+	// TODO : send PUSH message
+
+	free(mEOut);
+}
 /*
 Receive a list of nodes already joined
 */
@@ -258,19 +302,66 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 	memcpy(mEOut, &data[0]+sizeof(MessageHdr), msgsize);
 
 	// Copy to internal Vector
-	for (int index=0; index < numberOfMemberListEntry; index++) {		
+	for (int index=0; index < numberOfMemberListEntry; index++) {
+		mEOut[index].settimestamp((long)time(NULL));		
 		memberNode->memberList.push_back(mEOut[index]);
 	}	
 
 	// Set node to group
 	this->memberNode->inGroup = true;
 		
-	// Log add node
+	// Log add own node
 	log->logNodeAdd(&memberNode->addr, &memberNode->addr);
 
+	// Send PUSH message with updated Membership List
+	for (int index=0; index < memberNode->memberList.size(); index++) {
+		long heatbeatMe = memberNode->memberList[index].getheartbeat();
+		sendPushMsg(&memberNode->memberList[index], heatbeatMe++);
+	}
+	
+	
 	free(mEOut);
 }
 
+//  Send PUSH message with updated Membership List
+void MP1Node::sendPushMsg(MemberListEntry *me, long heartbeat) {
+	int numberToPush = GOSSIPK;
+	int indexGossip = 0;
+
+	int sizeNode = memberNode->memberList.size();
+
+	//Nothing to send, only one node in Membership List (itslef)
+	if (sizeNode == 1) {
+		return;
+	} else if (sizeNode == 2) {
+		numberToPush = 1;
+	}
+
+	while (indexGossip < numberToPush) {
+		
+		// Iterate over node
+		for (int index=0; index < sizeNode; index++) {
+
+			// Check if node itself
+			if (memberNode->memberList.getid() == memberNode->addr) {
+
+				continue;
+			}
+			
+			if(memberNode->memberList.getheartbeat() != heartbeat) {
+				
+
+				// set and send message with heartbeat
+				memberNode->memberList.setheartbeat(heartbeat);
+				// send via emulNet
+
+				indexGossip++;
+				break;
+			}
+		}
+
+	}
+}
 /*
 Send a List of joined nodes from introducer
 */
@@ -310,6 +401,7 @@ void MP1Node::ProcessJoinReq(void *env, char *data, int size)
 
     emulNet->ENsend(&memberNode->addr, new Address(to_string(id) + ":" + to_string(port)), (char *)msg, msgsize);	
 
+    free(mEOut);
     free(msg);
 	log->LOG(&memberNode->addr, s);
 }
