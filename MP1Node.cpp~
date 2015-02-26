@@ -346,10 +346,11 @@ void MP1Node::sendPushMsg(MemberListEntry *me) {
 	while (indexGossip < numberToPush) {
 		
 		// Get Randomly a Member
-		int dice_roll = 0;
-		do { 
-		 	dice_roll = getRandomVectorPosition();
-		} while ((int)memberNode->addr.addr[0] == dice_roll);
+		int dice_roll = getRandomVectorPosition();
+		
+		// check if not same node
+		if ((int)memberNode->addr.addr[0] == dice_roll) {
+		}
 
 		MemberListEntry nodeToSend = memberNode->memberList[dice_roll];
 
