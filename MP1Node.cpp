@@ -235,7 +235,6 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 			ProcessJoinRep(env,data,size);					
 			break;
 		case PUSH :	
-			cout << "[" << memberNode->addr.getAddress() << "] RCV PUSH MESSAGE\n" ;
 			ProcessPush(env,data,size);		
 			break;			
 		default :			
@@ -271,7 +270,8 @@ void MP1Node::ProcessPush(void *env, char *data, int size)
 					// update heartbeat and timestamp
 					memberNode->memberList[index].setheartbeat(heartbeat);
 					memberNode->memberList[index].settimestamp((long)time(NULL));
-				}
+					needToSend = true;
+				} 
 				break;
 			}
 		}
@@ -281,9 +281,8 @@ void MP1Node::ProcessPush(void *env, char *data, int size)
 			mEOut[index].settimestamp((long)time(NULL));
 			memberNode->memberList.push_back(mEOut[index]);
 			log->logNodeAdd(&memberNode->addr, new Address(to_string(id) + ":" + to_string(mEOut[index].getport())));
-
-			// Send to GOssip Node
-			sendPushMsg(&mEOut[index]);
+			//cout << " NewNode ["+ to_string(id) +"] added by node [" << memberNode->addr.getAddress() << "]\n";
+			needToSend = true;
 		}
 	}
 
@@ -316,21 +315,12 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 
 	// Set node to group
 	this->memberNode->inGroup = true;
-		
-	// Log add own node
-	log->logNodeAdd(&memberNode->addr, &memberNode->addr);
-
-	// Send PUSH message with updated Membership List
-	for (int index=0; index < memberNode->memberList.size(); index++) {
-		sendPushMsg(&memberNode->memberList[index]);
-	}
-	
+	needToSend = true;
 	
 	free(mEOut);
 }
-
 //  Send PUSH message with updated Membership List
-void MP1Node::sendPushMsg(MemberListEntry *me) {
+void MP1Node::sendPushMsg(vector<MemberListEntry> *memberListToSend) {
 	int numberToPush = GOSSIPK;
 	int indexGossip = 0;
 	MessageHdr *msg;
@@ -343,32 +333,37 @@ void MP1Node::sendPushMsg(MemberListEntry *me) {
 		numberToPush = 1;
 	}
 
+	int previous_dice = -1;
+
 	while (indexGossip < numberToPush) {
-		
+
 		// Get Randomly a Member
-		int dice_roll = 0;
+		int dice_roll = -1;
 		do { 
 		 	dice_roll = getRandomVectorPosition();
-		} while ((int)memberNode->addr.addr[0] == dice_roll);
+		} while (((int)memberNode->addr.addr[0] == memberNode->memberList[dice_roll].getid()) || (previous_dice==dice_roll));
 
+		previous_dice = dice_roll;
 		MemberListEntry nodeToSend = memberNode->memberList[dice_roll];
 
-		// Send Push Message to node
-		size_t size_vector = sizeof(MemberListEntry);
+		// Send Message
+		size_t size_vector = memberListToSend->size()*sizeof(memberNode->memberList);
 		size_t msgsize = sizeof(MessageHdr) + size_vector;
 
 		msg = (MessageHdr *) malloc(msgsize * sizeof(char));
-		msg->msgType = PUSH;	
-      
-	    // Send via EmulNet
-	    memcpy((char *)(msg+1), (char *)me, size_vector);
-	    emulNet->ENsend(&memberNode->addr, new Address(to_string(nodeToSend.getid()) + ":" + to_string(nodeToSend.getport())), (char *)msg, msgsize);
+		msg->msgType = PUSH;
 
+		// Send via Emulnet
+		MemberListEntry *mEOut = new MemberListEntry[memberListToSend->size()];
+    	std::copy(memberListToSend->begin(), memberListToSend->end(), mEOut);
+    	memcpy((char *)(msg+1), (char *)mEOut, size_vector);
+		emulNet->ENsend(&memberNode->addr, new Address(to_string(nodeToSend.getid()) + ":" + to_string(nodeToSend.getport())), (char *)msg, msgsize);
+
+		cout << "node ["+memberNode->addr.getAddress() +"] send his membership to node [" + to_string(nodeToSend.getid()) + "]\n";
 		// Increase Gossip Number
 		indexGossip++;
 
 		free(msg);
-
 	}
 }
 
@@ -377,7 +372,7 @@ int MP1Node::getRandomVectorPosition() {
 	int size = memberNode->memberList.size();
 	std::random_device rd; // obtain a random number from hardware
     std::mt19937 eng(rd()); // seed the generator
-    std::uniform_int_distribution<> distr(0, size); // define the range
+    std::uniform_int_distribution<> distr(1, size+1); // define the range
     int dice_roll = distr(eng);
 	return dice_roll;
 }
@@ -439,7 +434,11 @@ void MP1Node::nodeLoopOps() {
 	// Check TCleanup
 
 	// Propagate the membership list
-	
+	if (needToSend) {
+		// Send to Gossip Node
+		sendPushMsg(&memberNode->memberList);
+		needToSend = false;
+	}
     return;
 }
 

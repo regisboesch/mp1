@@ -20,7 +20,7 @@
  */
 #define TREMOVE 20
 #define TFAIL 5
-#define GOSSIPK 2
+#define GOSSIPK 3
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
@@ -54,8 +54,9 @@ private:
 	Log *log;
 	Params *par;
 	Member *memberNode;
+	bool needToSend = false;
 	char NULLADDR[6];
-	void sendPushMsg(MemberListEntry *me);
+	void sendPushMsg(vector<MemberListEntry> *memberListToSend);
 	int getRandomVectorPosition();
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
