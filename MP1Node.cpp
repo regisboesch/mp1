@@ -235,6 +235,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size ) {
 			ProcessJoinRep(env,data,size);					
 			break;
 		case PUSH :	
+			cout << "[" << memberNode->addr.getAddress() << "] RCV PUSH MESSAGE\n" ;
 			ProcessPush(env,data,size);		
 			break;			
 		default :			
@@ -307,7 +308,8 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 
 	// Copy to internal Vector
 	for (int index=0; index < numberOfMemberListEntry; index++) {
-		mEOut[index].settimestamp((long)time(NULL));		
+		mEOut[index].settimestamp((long)time(NULL));
+		mEOut[index].setheartbeat(1);	// first heartbeat to send		
 		memberNode->memberList.push_back(mEOut[index]);
 	}	
 
@@ -319,11 +321,6 @@ void MP1Node::ProcessJoinRep(void *env, char *data, int size)
 
 	// Send PUSH message with updated Membership List
 	for (int index=0; index < memberNode->memberList.size(); index++) {
-		
-		// Update HearBeat
-		long heatbeatMe = memberNode->memberList[index].getheartbeat();
-		memberNode->memberList[index].setheartbeat(heatbeatMe++);
-
 		sendPushMsg(&memberNode->memberList[index]);
 	}
 	
@@ -373,9 +370,10 @@ void MP1Node::sendPushMsg(MemberListEntry *me) {
 // return a random position of the Membership List
 int MP1Node::getRandomVectorPosition() {
 	int size = memberNode->memberList.size();
-	std::default_random_engine generator;
-	std::uniform_int_distribution<int> distribution(0,size);
-	int dice_roll = distribution(generator);
+	std::random_device rd; // obtain a random number from hardware
+    std::mt19937 eng(rd()); // seed the generator
+    std::uniform_int_distribution<> distr(0, size); // define the range
+    int dice_roll = distr(eng);
 	return dice_roll;
 }
 /*
