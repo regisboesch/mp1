@@ -57,7 +57,7 @@ private:
 	bool needToSend = false;
 	char NULLADDR[6];
 	void sendPushMsg(vector<MemberListEntry> *memberListToSend);
-	int getRandomVectorPosition();
+	int getRandomVectorPosition(int size);
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
 	Member * getMemberNode() {

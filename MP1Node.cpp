@@ -324,27 +324,36 @@ void MP1Node::sendPushMsg(vector<MemberListEntry> *memberListToSend) {
 	int numberToPush = GOSSIPK;
 	int indexGossip = 0;
 	MessageHdr *msg;
-	int sizeNode = memberNode->memberList.size();
+	int numberOfMemberListEntry = memberListToSend->size();
 
-	//Nothing to send, only one node in Membership List (itslef)
-	if (sizeNode == 1) {
-		return;
-	} else if (sizeNode == 2) {
-		numberToPush = 1;
+	// Compute available vector node
+	vector<MemberListEntry> availableNode;
+
+	// Iterate over memberList
+	for (int index=0; index < numberOfMemberListEntry; index++) {
+		
+		// Check if not same node for addiction
+		if(memberNode->addr.addr[0] != memberListToSend->at(index).getid()) {
+			availableNode.push_back(memberListToSend->at(index));
+			cout << "[" << memberNode->addr.getAddress() << "]Membership Internal : [" << memberListToSend->at(index).getid() << ":" << memberListToSend->at(index).getport()<<"]\n";
+		}
+
 	}
 
-	int previous_dice = -1;
+	//Nothing to send, only one node in Membership List (itslef)
+	int sizeNode = availableNode.size();	
+	if (sizeNode < GOSSIPK ) {
+		numberToPush = sizeNode;
+	}
 
 	while (indexGossip < numberToPush) {
 
-		// Get Randomly a Member
-		int dice_roll = -1;
-		do { 
-		 	dice_roll = getRandomVectorPosition();
-		} while (((int)memberNode->addr.addr[0] == memberNode->memberList[dice_roll].getid()) || (previous_dice==dice_roll));
+		cout << "Size of Av Node : " << availableNode.size() << "\n";
 
-		previous_dice = dice_roll;
-		MemberListEntry nodeToSend = memberNode->memberList[dice_roll];
+		// Get Randomly a Member
+		int dice_roll = getRandomVectorPosition(availableNode.size());
+	
+		MemberListEntry nodeToSend = availableNode.at(dice_roll);
 
 		// Send Message
 		size_t size_vector = memberListToSend->size()*sizeof(memberNode->memberList);
@@ -360,20 +369,25 @@ void MP1Node::sendPushMsg(vector<MemberListEntry> *memberListToSend) {
 		emulNet->ENsend(&memberNode->addr, new Address(to_string(nodeToSend.getid()) + ":" + to_string(nodeToSend.getport())), (char *)msg, msgsize);
 
 		cout << "node ["+memberNode->addr.getAddress() +"] send his membership to node [" + to_string(nodeToSend.getid()) + "]\n";
+
 		// Increase Gossip Number
 		indexGossip++;
 
+		// Remove from availableNode nodeToSend
+		availableNode.erase(availableNode.begin()+dice_roll);
+		
+		free(mEOut);
 		free(msg);
 	}
 }
 
 // return a random position of the Membership List
-int MP1Node::getRandomVectorPosition() {
-	int size = memberNode->memberList.size();
+int MP1Node::getRandomVectorPosition(int size) {	
 	std::random_device rd; // obtain a random number from hardware
     std::mt19937 eng(rd()); // seed the generator
-    std::uniform_int_distribution<> distr(1, size+1); // define the range
+    std::uniform_int_distribution<> distr(0, size-1); // define the range
     int dice_roll = distr(eng);
+    cout << "Dice choosed :" << dice_roll << "\n";
 	return dice_roll;
 }
 /*
